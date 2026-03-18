@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>家計メモアプリ</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+  <h1>家計メモアプリ({{ selected_month }})</h1>
+
+  <form method="get" class="month-picker">
+    <label for="month">表示する月</label>
+    <select name="month" id="month" onchange="this.form.submit()">
+      {% for m in months %}
+        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="flash-message">
+        {% for message in messages %}
+          <div>{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+    <div class="total-card">
+      <div class="total-label">💰 今月の支出</div>
+      <div class="total-amount">¥{{ "{:,}".format(monthly_totals.current) }} 円</div>
+    </div>
+
+    <div class="monthly-summary">
+      <div>📅 {{ selected_month }} 合計 : {{ "{:,}".format(monthly_totals.current) }} 円</div>
+      <div>📆 {{ prev_month }} 合計 : {{ "{:,}".format(monthly_totals.last) }} 円</div>
+    </div>
+
+    <div class="month-compare">
+      <div>📅 {{ selected_month }} 合計 : {{ "{:,}".format(total) }} 円</div>
+      <div>📅 {{ last_same_month }} 合計 : {{ "{:,}".format(last_same_month_total) }} 円</div>
+
+      <div class="{% if month_diff >= 0 %}diff-plus{% else %}diff-minus{% endif %}">
+        差(今月 - 去年同月)：{{"{:+,}".format(month_diff) }} 円
+      </div>
+
+      <div>
+        📉 前年同月比：
+        {% if yoy_percent is not none %}
+          {{ "{:+.1f}".format(yoy_percent) }}%
+        {% else %}
+          - (前年同月が０円)
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="year-compare-grid">
+
+      <div class="year-card">
+        <div class="label">📊 {{ selected_year }}年 合計</div>
+        <div class="amount">{{ "{:,}".format(year_total) }} 円</div>
+      </div>
+
+      <div class="year-card">
+        <div class="label">📉 {{ last_year }}年 合計</div>
+        <div class="amount">{{ "{:,}".format(last_year_total) }} 円</div>
+      </div>
+
+      <div class="year-card diff-card {% if year_diff >= 0 %}diff-plus{% else %}diff-minus{% endif %}">
+        <div class="label">差</div>
+        <div class="amount">{{ "{:+,}".format(year_diff) }} 円</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">📅{{ selected_year }}年 月ランキング</h3>
+    <ul>
+      {% for m, amt in month_ranking %}
+        <li>{{ m }}月：{{ "{:,}".format(amt) }} 円</li>
+      {% endfor %}
+    </ul>
+
+    <h4>📅 {{ selected_year }}年 月別内訳</h4>
+    <ul>
+      {% for m, amt in monthly_breakdown.items() %}
+        {% if amt > 0 %}
+          <li>{{ m }}月：{{ "{:,}".format(amt) }} 円</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+
+    <div class="category-summary">
+      <h3>カテゴリ別合計</h3>
+      <div class="category-grid">
+        <div class="cat-card">
+          <span class="cat-name">食費</span>
+          <span class="cat-amount">{{ category_totals["食費"] }} 円</span>
+        </div>
+        <div class="cat-card">
+          <span class="cat-name">交通</span>
+          <span class="cat-amount">{{ category_totals["交通"] }} 円</span>
+        </div>
+        <div class="cat-card">
+          <span class="cat-name">娯楽</span>
+          <span class="cat-amount">{{ category_totals["娯楽"] }} 円</span>
+        </div>
+        <div class="cat-card">
+          <span class="cat-name">その他</span>
+          <span class="cat-amount">{{ category_totals["その他"] }} 円</span>
+        </div>
+      </div>
+      <h3 class="section-title">支出グラフ</h3>
+      <div class="chart-wrap">
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+
+    <h3 class="section-title">カテゴリランキング</h3>
+    <ul class="ranking-list">
+      {% for category, amount, pct in category_ranking %}
+        <li>
+          {{ loop.index }}位：
+          {{ category }} -
+          {{ "{:,}".format(amount) }} 円 ({{ pct }}%)
+        </li>
+      {% endfor %}
+    </ul>
+    
+  <form method="post" class="form-inline">
+    <div class="field">
+      <label>金額：</label>
+      <input type="number" name="amount" placeholder="例：1200" required>
+    </div>
+
+    <div class="field">
+      <label>カテゴリ：</label>
+      <select name="category" required>
+        <option value="">選択してください</option>
+        <option value="食費">食費</option>
+        <option value="交通">交通</option>
+        <option value="娯楽">娯楽</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>メモ：</label>
+      <input type="text" name="note" placeholder="例：スーパー">
+    </div>
+    
+    <button type="submit">追加</button>
+  </form>
+
+  <hr>
+
+  <h2>支出一覧</h2>
+
+  <form method="get">
+    <input type="text" name="keyword" placeholder="メモで検索">
+    <button type="submit">検索</button>
+  </form>
+
+  <ul class="list">
+    {% set icon_map ={
+      "食費": "🍚",
+      "交通": "🚃",
+      "娯楽": "🎮",
+      "その他": "🧸"
+    } %}
+    {% for e in expenses %}
+      <li class="item">
+        <div class="item-left">
+          <div class="item-date">{{ e.date }}</div>
+
+          <div class="item-meta">
+            <span class="pill pill-amount">{{ "{:,}".format(e.amount) }}円</span>
+            <span class="pill pill-cat">{{ icon_map[e.category] }} {{ e.category }}</span>
+            {% if e.note %}
+              <span class="pill pill-note">{{ e.note }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="item-right">
+          <form method="POST" action="/edit" style="display: inline;">
+            <input type="hidden" name="raw" value="{{ e.raw | e }}">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <button type="submit" class="edit-btn">編集</button>
+          </form>
+          
+          <form method="POST" action="/delete" style="display: inline;"
+                onsubmit="return confirm('この支出を削除しますか？');">
+            <input type="hidden" name="raw" value="{{ e.raw | e }}">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            
+            <button type="submit" class="delete-btn">削除</button>
+          </form>
+        </div>
+      </li>
+    {% else %}
+      <li>まだ支出がありません</li>
+    {% endfor %}
+  </ul>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    const categoryTotals = {{ category_totals | tojson }};
+
+    const labels = Object.keys(categoryTotals);
+    const values = Object.values(categoryTotals);
+
+    const bgColorMap = {
+      "食費": "#FFC8D4",
+      "交通": "#FFD6A5",
+      "娯楽": "#CDB4DB",
+      "その他": "#BDE0FE"
+    }
+
+    const bgColors = labels.map(label => bgColorMap[label] || "#ddd");
+
+    const ctx = document.getElementById("categoryChart");
+
+    new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: bgColors,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom" } }
+      }
+    });
+  </script>
+</body>
+</html>

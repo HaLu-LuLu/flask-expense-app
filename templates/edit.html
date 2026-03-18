@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>支出を編集</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>支出を編集</h1>
+
+    <form method="POST" action="/update">
+      <input type="hidden" name="old_raw" value="{{ raw | e }}">
+      <input type="hidden" name="month" value="{{ selected_month }}">
+
+      <div class="field">
+        <label>日時：</label>
+        <input type="text" name="date" value="{{ date }}" readonly>
+      </div>
+
+      <div class="field">
+        <label>金額：</label>
+        <input type="number" name="amount" value="{{ amount }}" required>
+      </div>
+
+      <div class="field">
+        <label>カテゴリ：</label>
+        <select name="category" required>
+          <option value="食費" {% if category == "食費" %}selected{% endif %}>食費</option>
+          <option value="交通" {% if category == "交通" %}selected{% endif %}>交通</option>
+          <option value="娯楽" {% if category == "娯楽" %}selected{% endif %}>娯楽</option>
+          <option value="その他" {% if category == "その他" %}selected{% endif %}>その他</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>メモ：</label>
+        <input type="text" name="note" value="{{ note }}">
+      </div>
+
+      <button type="submit">保存</button>
+    </form>
+
+    <p><a href="/?month={{ selected_month }}">← 戻る</a></p>
+  </div>
+</body>
+</html>
