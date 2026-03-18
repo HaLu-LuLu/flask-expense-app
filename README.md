@@ -11,7 +11,7 @@
 ## 使用技術
 ‐ Python(Flask)
 ‐ HTML / CSS
-- JavaScript (Chart.js)
+‐ JavaScript (Chart.js)
 
 ## 工夫した点
 ‐ カテゴリにアイコンを追加
